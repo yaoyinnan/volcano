@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -357,6 +358,8 @@ func checkNodeGPUSharingPredicateAndScore(pod *v1.Pod, gssnap *GPUDevices, repli
 		}
 		klog.V(3).InfoS("Allocating device for container", "request", val)
 
+		sortGPUDevicesByScore(gs, schedulePolicy)
+
 		for i := len(gs.Device) - 1; i >= 0; i-- {
 			klog.V(3).InfoS("Scoring pod request", "memReq", val.Memreq, "memPercentageReq", val.MemPercentagereq, "coresReq", val.Coresreq, "Nums", val.Nums, "Index", i, "ID", gs.Device[i].ID)
 			klog.V(3).InfoS("Current Device", "Index", i, "TotalMemory", gs.Device[i].Memory, "UsedMemory", gs.Device[i].UsedMem, "UsedCores", gs.Device[i].UsedNum)
@@ -398,16 +401,7 @@ func checkNodeGPUSharingPredicateAndScore(pod *v1.Pod, gssnap *GPUDevices, repli
 					Usedmem:   val.Memreq,
 					Usedcores: val.Coresreq,
 				})
-				switch schedulePolicy {
-				case binpackPolicy:
-					score += binpackMultiplier * (float64(gs.Device[i].UsedMem) / float64(gs.Device[i].Memory))
-				case spreadPolicy:
-					if gs.Device[i].UsedNum == 1 {
-						score += spreadMultiplier
-					}
-				default:
-					score = float64(0)
-				}
+				score += calculateGPUScore(*gs.Device[i], schedulePolicy)
 			}
 			if val.Nums == 0 {
 				break
@@ -419,6 +413,38 @@ func checkNodeGPUSharingPredicateAndScore(pod *v1.Pod, gssnap *GPUDevices, repli
 		ctrdevs = append(ctrdevs, devs)
 	}
 	return true, ctrdevs, score, nil
+}
+
+func calculateGPUScore(device GPUDevice, schedulePolicy string) float64 {
+	score := float64(0)
+
+	switch schedulePolicy {
+	case binpackPolicy:
+		score += binpackMultiplier * float64(device.UsedMem) / float64(device.Memory)
+	case spreadPolicy:
+		if device.UsedNum == 1 {
+			score += spreadMultiplier
+		}
+	default:
+		score = 0
+	}
+
+	return score
+}
+
+func sortGPUDevicesByScore(gs *GPUDevices, schedulePolicy string) {
+	deviceSlice := make([]*GPUDevice, 0, len(gs.Device))
+	for _, device := range gs.Device {
+		deviceSlice = append(deviceSlice, device)
+	}
+
+	sort.SliceStable(deviceSlice, func(i, j int) bool {
+		return calculateGPUScore(*deviceSlice[i], schedulePolicy) < calculateGPUScore(*deviceSlice[j], schedulePolicy)
+	})
+
+	for i, device := range deviceSlice {
+		gs.Device[i] = device
+	}
 }
 
 func patchPodAnnotations(pod *v1.Pod, annotations map[string]string) error {
