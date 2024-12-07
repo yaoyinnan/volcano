@@ -22,6 +22,8 @@ var NodeLockEnable bool
 const (
 	GPUInUse                         = "nvidia.com/use-gputype"
 	GPUNoUse                         = "nvidia.com/nouse-gputype"
+	GPUUseUUID                       = "volcano.sh/use-gpuuuid"
+	GPUNoUseUUID                     = "volcano.sh/nouse-gpuuuid"
 	AssignedTimeAnnotations          = "volcano.sh/vgpu-time"
 	AssignedIDsAnnotations           = "volcano.sh/vgpu-ids-new"
 	AssignedIDsToAllocateAnnotations = "volcano.sh/devices-to-allocate"

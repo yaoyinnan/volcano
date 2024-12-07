@@ -306,6 +306,35 @@ func checkType(annos map[string]string, d GPUDevice, n ContainerDeviceRequest) b
 	return false
 }
 
+func checkGPUUUID(annos map[string]string, d GPUDevice) bool {
+	useUUID, useOK := annos[GPUUseUUID]
+	noUseUUID, noUseOK := annos[GPUNoUseUUID]
+
+	if !useOK && !noUseOK {
+		return true
+	}
+
+	useMap := make(map[string]struct{})
+	if useOK {
+		for _, uuid := range strings.Split(useUUID, ",") {
+			useMap[uuid] = struct{}{}
+		}
+	}
+
+	if noUseOK {
+		noUseUUIDs := strings.Split(noUseUUID, ",")
+		for _, uuid := range noUseUUIDs {
+			if !useOK && d.UUID == uuid {
+				return false
+			}
+			delete(useMap, uuid)
+		}
+	}
+
+	_, found := useMap[d.UUID]
+	return found
+}
+
 func getGPUDeviceSnapShot(snap *GPUDevices) *GPUDevices {
 	ret := GPUDevices{
 		Name:   snap.Name,
@@ -382,6 +411,10 @@ func checkNodeGPUSharingPredicateAndScore(pod *v1.Pod, gssnap *GPUDevices, repli
 			}
 			if !checkType(pod.Annotations, *gs.Device[i], val) {
 				klog.Errorln("failed checktype", gs.Device[i].Type, val.Type)
+				continue
+			}
+			if !checkGPUUUID(pod.Annotations, *gs.Device[i]) {
+				klog.Errorln("failed checkGPUUUID", gs.Device[i].UUID)
 				continue
 			}
 			//total += gs.Devices[i].Count
