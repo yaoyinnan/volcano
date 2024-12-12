@@ -42,20 +42,22 @@ const (
 
 	VGPUEnable = "deviceshare.VGPUEnable"
 
-	SchedulePolicyArgument = "deviceshare.SchedulePolicy"
-	ScheduleWeight         = "deviceshare.ScheduleWeight"
+	NodeSchedulePolicyArgument = "deviceshare.NodeSchedulePolicy"
+	GPUSchedulePolicyArgument  = "deviceshare.GPUSchedulePolicy"
+	ScheduleWeight             = "deviceshare.ScheduleWeight"
 )
 
 type deviceSharePlugin struct {
 	// Arguments given for the plugin
-	pluginArguments framework.Arguments
-	schedulePolicy  string
-	scheduleWeight  int
+	pluginArguments    framework.Arguments
+	nodeSchedulePolicy string
+	gpuSchedulePolicy  string
+	scheduleWeight     int
 }
 
 // New return priority plugin
 func New(arguments framework.Arguments) framework.Plugin {
-	dsp := &deviceSharePlugin{pluginArguments: arguments, schedulePolicy: "", scheduleWeight: 0}
+	dsp := &deviceSharePlugin{pluginArguments: arguments, nodeSchedulePolicy: "", gpuSchedulePolicy: "", scheduleWeight: 0}
 	enablePredicate(dsp)
 	return dsp
 }
@@ -76,9 +78,13 @@ func enablePredicate(dsp *deviceSharePlugin) {
 	gpushare.NodeLockEnable = nodeLockEnable
 	vgpu.NodeLockEnable = nodeLockEnable
 
-	_, ok := args[SchedulePolicyArgument]
+	_, ok := args[NodeSchedulePolicyArgument]
 	if ok {
-		dsp.schedulePolicy = args[SchedulePolicyArgument].(string)
+		dsp.nodeSchedulePolicy = args[NodeSchedulePolicyArgument].(string)
+	}
+	_, ok = args[GPUSchedulePolicyArgument]
+	if ok {
+		dsp.gpuSchedulePolicy = args[GPUSchedulePolicyArgument].(string)
 	}
 	args.GetInt(&dsp.scheduleWeight, ScheduleWeight)
 
@@ -98,11 +104,11 @@ func createStatus(code int, reason string) *api.Status {
 	return &status
 }
 
-func getDeviceScore(ctx context.Context, pod *v1.Pod, node *api.NodeInfo, schedulePolicy string) (int64, *k8sframework.Status) {
+func getDeviceScore(ctx context.Context, pod *v1.Pod, node *api.NodeInfo) (int64, *k8sframework.Status) {
 	s := float64(0)
 	for _, devices := range node.Others {
 		if devices.(api.Devices).HasDeviceRequest(pod) {
-			ns := devices.(api.Devices).ScoreNode(pod, schedulePolicy)
+			ns := devices.(api.Devices).ScoreNode(pod)
 			s += ns
 		}
 	}
@@ -130,7 +136,9 @@ func (dp *deviceSharePlugin) OnSessionOpen(ssn *framework.Session) {
 					klog.V(4).Infof("pod %s/%s did not request device %s on %s, skipping it", task.Pod.Namespace, task.Pod.Name, val, node.Name)
 					continue
 				}
-				code, msg, err := dev.FilterNode(task.Pod, dp.schedulePolicy)
+				dev.SetNodeSchedulerPolicy(dp.nodeSchedulePolicy)
+				dev.SetGPUSchedulerPolicy(dp.gpuSchedulePolicy)
+				code, msg, err := dev.FilterNode(task.Pod)
 				if err != nil {
 					predicateStatus = append(predicateStatus, createStatus(code, msg))
 					return api.NewFitErrWithStatus(task, node, predicateStatus...)
@@ -153,8 +161,8 @@ func (dp *deviceSharePlugin) OnSessionOpen(ssn *framework.Session) {
 
 	ssn.AddNodeOrderFn(dp.Name(), func(task *api.TaskInfo, node *api.NodeInfo) (float64, error) {
 		// DeviceScore
-		if len(dp.schedulePolicy) > 0 {
-			score, status := getDeviceScore(context.TODO(), task.Pod, node, dp.schedulePolicy)
+		if len(dp.nodeSchedulePolicy) > 0 {
+			score, status := getDeviceScore(context.TODO(), task.Pod, node)
 			if !status.IsSuccess() {
 				klog.Warningf("Node: %s, Calculate Device Score Failed because of Error: %v", node.Name, status.AsError())
 				return 0, status.AsError()

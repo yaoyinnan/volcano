@@ -59,10 +59,10 @@ type Devices interface {
 	// preemption would not change anything. Plugins should return Unschedulable if it is possible
 	// that the pod can get scheduled with preemption.
 	// The accompanying status message should explain why the pod is unschedulable.
-	FilterNode(pod *v1.Pod, policy string) (int, string, error)
+	FilterNode(pod *v1.Pod) (int, string, error)
 	// ScoreNode will be invoked when using devicescore plugin, devices api can use it to implement multiple
 	// scheduling policies.
-	ScoreNode(pod *v1.Pod, policy string) float64
+	ScoreNode(pod *v1.Pod) float64
 
 	// Allocate action in predicate
 	Allocate(kubeClient kubernetes.Interface, pod *v1.Pod) error
@@ -74,6 +74,12 @@ type Devices interface {
 
 	// GetStatus used for debug and monitor
 	GetStatus() string
+
+	// SetNodeSchedulerPolicy set the scheduler policy for the node
+	SetNodeSchedulerPolicy(policy string)
+
+	// SetGPUSchedulerPolicy set the scheduler policy for the gpu
+	SetGPUSchedulerPolicy(policy string)
 }
 
 // make sure GPUDevices implements Devices interface

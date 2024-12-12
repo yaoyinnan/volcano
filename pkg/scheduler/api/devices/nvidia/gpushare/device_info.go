@@ -148,7 +148,7 @@ func (gs *GPUDevices) Release(kubeClient kubernetes.Interface, pod *v1.Pod) erro
 	return nil
 }
 
-func (gs *GPUDevices) FilterNode(pod *v1.Pod, schedulePolicy string) (int, string, error) {
+func (gs *GPUDevices) FilterNode(pod *v1.Pod) (int, string, error) {
 	klog.V(4).Infoln("DeviceSharing:Into FitInPod", pod.Name)
 	if GpuSharingEnable {
 		fit, err := checkNodeGPUSharingPredicate(pod, gs)
@@ -172,7 +172,7 @@ func (gs *GPUDevices) GetStatus() string {
 	return ""
 }
 
-func (gs *GPUDevices) ScoreNode(pod *v1.Pod, schedulePolicy string) float64 {
+func (gs *GPUDevices) ScoreNode(pod *v1.Pod) float64 {
 	return 0
 }
 
@@ -223,4 +223,10 @@ func (gs *GPUDevices) Allocate(kubeClient kubernetes.Interface, pod *v1.Pod) err
 		klog.V(4).Infof("predicates with gpu number, update pod %s/%s allocate to node [%s]", pod.Namespace, pod.Name, gs.Name)
 	}
 	return nil
+}
+
+func (gs *GPUDevices) SetNodeSchedulerPolicy(policy string) {
+}
+
+func (gs *GPUDevices) SetGPUSchedulerPolicy(policy string) {
 }

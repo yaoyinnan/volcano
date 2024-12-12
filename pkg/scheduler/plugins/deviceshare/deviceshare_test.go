@@ -57,8 +57,8 @@ func TestArguments(t *testing.T) {
 		t.Errorf("weight should be 10, but not %v", weight)
 	}
 
-	if deviceshare.schedulePolicy != "binpack" {
-		t.Errorf("policy should be binpack, but not %s", deviceshare.schedulePolicy)
+	if deviceshare.nodeSchedulePolicy != "binpack" {
+		t.Errorf("policy should be binpack, but not %s", deviceshare.nodeSchedulePolicy)
 	}
 }
 
@@ -90,12 +90,12 @@ func TestVgpuScore(t *testing.T) {
 	addResource(p1.Spec.Containers[0].Resources.Limits, gpunumber, "1")
 	addResource(p1.Spec.Containers[0].Resources.Limits, gpumemory, "1000")
 
-	canAccess, _, err := gpuNode1.FilterNode(p1, "binpack")
+	canAccess, _, err := gpuNode1.FilterNode(p1)
 	if err != nil || canAccess != 0 {
 		t.Errorf("binpack filter failed %s", err.Error())
 	}
 
-	score := gpuNode1.ScoreNode(p1, "binpack")
+	score := gpuNode1.ScoreNode(p1)
 	if score-float64(4000*100)/float64(30000) > 0.05 {
 		t.Errorf("score failed expected %f, get %f", float64(4000*100)/float64(30000), score)
 	}
@@ -117,12 +117,12 @@ func TestVgpuScore(t *testing.T) {
 	addResource(p2.Spec.Containers[0].Resources.Limits, gpunumber, "1")
 	addResource(p2.Spec.Containers[0].Resources.Limits, gpumemory, "1000")
 
-	canAccess, _, err = gpuNode2.FilterNode(p2, "spread")
+	canAccess, _, err = gpuNode2.FilterNode(p2)
 	if err != nil || canAccess != 0 {
 		t.Errorf("binpack filter failed %s", err.Error())
 	}
 
-	score = gpuNode2.ScoreNode(p1, "spread")
+	score = gpuNode2.ScoreNode(p1)
 	if score-float64(100) > 0.05 {
 		t.Errorf("score failed expected %f, get %f", float64(4000*100)/float64(30000), score)
 	}

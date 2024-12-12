@@ -68,6 +68,9 @@ type GPUDevices struct {
 	// We cache score in filter step according to schedulePolicy, to avoid recalculating in score
 	Score float64
 
+	NodeSchedulePolicy string
+	GPUSchedulePolicy  string
+
 	Device map[int]*GPUDevice
 }
 
@@ -125,7 +128,7 @@ func NewGPUDevices(name string, node *v1.Node) *GPUDevices {
 	return nodedevices
 }
 
-func (gs *GPUDevices) ScoreNode(pod *v1.Pod, schedulePolicy string) float64 {
+func (gs *GPUDevices) ScoreNode(pod *v1.Pod) float64 {
 	/* TODO: we need a base score to be campatable with preemption, it means a node without evicting a task has
 	a higher score than those needs to evict a task */
 
@@ -210,10 +213,10 @@ func (gs *GPUDevices) Release(kubeClient kubernetes.Interface, pod *v1.Pod) erro
 	return nil
 }
 
-func (gs *GPUDevices) FilterNode(pod *v1.Pod, schedulePolicy string) (int, string, error) {
+func (gs *GPUDevices) FilterNode(pod *v1.Pod) (int, string, error) {
 	if VGPUEnable {
 		klog.V(4).Infoln("hami-vgpu DeviceSharing starts filtering pods", pod.Name)
-		fit, _, score, err := checkNodeGPUSharingPredicateAndScore(pod, gs, true, schedulePolicy)
+		fit, _, score, err := checkNodeGPUSharingPredicateAndScore(pod, gs, true, gs.NodeSchedulePolicy)
 		if err != nil || !fit {
 			klog.ErrorS(err, "Failed to allocate vgpu task")
 			return devices.Unschedulable, fmt.Sprintf("hami-vgpuDeviceSharing %s", err.Error()), err
@@ -227,7 +230,7 @@ func (gs *GPUDevices) FilterNode(pod *v1.Pod, schedulePolicy string) (int, strin
 func (gs *GPUDevices) Allocate(kubeClient kubernetes.Interface, pod *v1.Pod) error {
 	if VGPUEnable {
 		klog.V(4).Infoln("hami-vgpu DeviceSharing:Into AllocateToPod", pod.Name)
-		fit, device, _, err := checkNodeGPUSharingPredicateAndScore(pod, gs, false, "")
+		fit, device, _, err := checkNodeGPUSharingPredicateAndScore(pod, gs, false, gs.GPUSchedulePolicy)
 		if err != nil || !fit {
 			klog.ErrorS(err, "Failed to allocate vgpu task")
 			return err
@@ -255,4 +258,12 @@ func (gs *GPUDevices) Allocate(kubeClient kubernetes.Interface, pod *v1.Pod) err
 		klog.V(3).Infoln("DeviceSharing:Allocate Success")
 	}
 	return nil
+}
+
+func (gs *GPUDevices) SetNodeSchedulerPolicy(policy string) {
+	gs.NodeSchedulePolicy = policy
+}
+
+func (gs *GPUDevices) SetGPUSchedulerPolicy(policy string) {
+	gs.GPUSchedulePolicy = policy
 }
